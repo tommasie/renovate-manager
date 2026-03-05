@@ -1,0 +1,20 @@
+[package]
+name = "renovate-manager"
+version = "0.1.0"
+edition = "2024"
+description = "A K9S-inspired TUI for managing Renovate pull requests across GitHub repositories"
+
+[dependencies]
+octocrab = { version = "0.43", features = ["default"] }
+tokio = { version = "1", features = ["full"] }
+ratatui = "0.29"
+crossterm = { version = "0.28", features = ["event-stream"] }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+futures = "0.3"
+tokio-stream = "0.1"
+
+[dev-dependencies]
+mockall = "0.13"
+tokio-test = "0.4"
