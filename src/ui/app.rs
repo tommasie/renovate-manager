@@ -1,5 +1,5 @@
 /// Application state and event loop for the TUI.
-use crate::models::RenovatePr;
+use crate::models::{RenovatePr, IssueItem};
 
 // ---------------------------------------------------------------------------
 // Input events
@@ -36,8 +36,10 @@ pub enum Screen {
 /// Central state object that the TUI renderer reads and the event loop
 /// mutates.
 pub struct App {
-    /// All Renovate PRs fetched from GitHub.
-    pub prs: Vec<RenovatePr>,
+    /// All Issues fetched from GitHub.
+    pub issues: Vec<IssueItem>,
+    /// Github username of the authenticated user, used for personalized messages.
+    pub gh_username: String,
     /// Index of the currently highlighted row in the list.
     pub selected: usize,
     /// Currently active screen.
@@ -49,10 +51,11 @@ pub struct App {
 }
 
 impl App {
-    /// Creates a new [`App`] with the given pull requests.
-    pub fn new(prs: Vec<RenovatePr>) -> Self {
+    /// Creates a new [`App`] with the given Issues and GitHub username.
+    pub fn new(issues: Vec<IssueItem>, gh_username: String) -> Self {
         Self {
-            prs,
+            issues,
+            gh_username,
             selected: 0,
             screen: Screen::default(),
             should_quit: false,
@@ -88,25 +91,25 @@ impl App {
     }
 
     fn move_selection_down(&mut self) {
-        if matches!(self.screen, Screen::List) && !self.prs.is_empty() {
-            self.selected = (self.selected + 1).min(self.prs.len() - 1);
+        if matches!(self.screen, Screen::List) && !self.issues.is_empty() {
+            self.selected = (self.selected + 1).min(self.issues.len() - 1);
         }
     }
 
     fn open_selected(&mut self) {
-        if !self.prs.is_empty() {
+        if !self.issues.is_empty() {
             self.screen = Screen::Detail(self.selected);
         }
     }
 
-    /// Returns the pull request currently highlighted in the list, if any.
-    pub fn selected_pr(&self) -> Option<&RenovatePr> {
-        self.prs.get(self.selected)
+    /// Returns the issue currently highlighted in the list, if any.
+    pub fn selected_issue(&self) -> Option<&IssueItem> {
+        self.issues.get(self.selected)
     }
 
-    /// Replaces the current PR list and resets selection.
-    pub fn update_prs(&mut self, prs: Vec<RenovatePr>) {
-        self.prs = prs;
+    /// Replaces the current issue list and resets selection.
+    pub fn update_issues(&mut self, issues: Vec<IssueItem>) {
+        self.issues = issues;
         self.selected = 0;
         self.screen = Screen::List;
         self.status_message = None;
@@ -121,15 +124,12 @@ impl App {
 mod tests {
     use super::*;
 
-    fn sample_prs(n: usize) -> Vec<RenovatePr> {
-        use crate::models::ChecksStatus;
+    fn sample_issues(n: usize) -> Vec<IssueItem> {
         (0..n)
-            .map(|i| RenovatePr::new(
+            .map(|i| IssueItem::new(
                 format!("owner/repo-{i}"),
-                i as u64,
                 format!("Update dep {i}"),
-                format!("https://github.com/owner/repo-{i}/pull/{i}"),
-                ChecksStatus::Success,
+                format!("https://github.com/owner/repo-{i}/pull/{i}")
             ))
             .collect()
     }
@@ -139,18 +139,18 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[test]
-    fn new_app_starts_at_first_pr() {
-        let app = App::new(sample_prs(5));
+    fn new_app_starts_at_first_issue() {
+        let app = App::new(sample_issues(5), "test_user".to_string());
         assert_eq!(app.selected, 0);
         assert_eq!(app.screen, Screen::List);
         assert!(!app.should_quit);
     }
 
     #[test]
-    fn new_app_with_no_prs() {
-        let app = App::new(vec![]);
+    fn new_app_with_no_issues() {
+        let app = App::new(vec![], "test_user".to_string());
         assert_eq!(app.selected, 0);
-        assert!(app.selected_pr().is_none());
+        assert!(app.selected_issue().is_none());
     }
 
     // ------------------------------------------------------------------
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn quit_event_sets_should_quit() {
-        let mut app = App::new(sample_prs(3));
+        let mut app = App::new(sample_issues(3), "test_user".to_string());
         app.handle_event(AppEvent::Quit);
         assert!(app.should_quit);
     }
@@ -170,14 +170,14 @@ mod tests {
 
     #[test]
     fn navigate_down_increments_selection() {
-        let mut app = App::new(sample_prs(5));
+        let mut app = App::new(sample_issues(5), "test_user".to_string());
         app.handle_event(AppEvent::NavigateDown);
         assert_eq!(app.selected, 1);
     }
 
     #[test]
     fn navigate_down_does_not_exceed_last_item() {
-        let mut app = App::new(sample_prs(3));
+        let mut app = App::new(sample_issues(3), "test_user".to_string());
         for _ in 0..10 {
             app.handle_event(AppEvent::NavigateDown);
         }
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn navigate_down_on_empty_list_is_noop() {
-        let mut app = App::new(vec![]);
+        let mut app = App::new(vec![], "test_user".to_string());
         app.handle_event(AppEvent::NavigateDown);
         assert_eq!(app.selected, 0);
     }
@@ -197,7 +197,7 @@ mod tests {
 
     #[test]
     fn navigate_up_decrements_selection() {
-        let mut app = App::new(sample_prs(5));
+        let mut app = App::new( sample_issues(5), "test_user".to_string());
         app.handle_event(AppEvent::NavigateDown);
         app.handle_event(AppEvent::NavigateDown);
         app.handle_event(AppEvent::NavigateUp);
@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn navigate_up_does_not_go_below_zero() {
-        let mut app = App::new(sample_prs(3));
+        let mut app = App::new(sample_issues(3), "test_user".to_string());
         for _ in 0..5 {
             app.handle_event(AppEvent::NavigateUp);
         }
@@ -219,7 +219,7 @@ mod tests {
 
     #[test]
     fn select_opens_detail_screen() {
-        let mut app = App::new(sample_prs(5));
+        let mut app = App::new(sample_issues(5), "test_user".to_string());
         app.handle_event(AppEvent::NavigateDown);
         app.handle_event(AppEvent::Select);
         assert_eq!(app.screen, Screen::Detail(1));
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn navigate_up_from_detail_returns_to_list() {
-        let mut app = App::new(sample_prs(5));
+        let mut app = App::new(sample_issues(5), "test_user".to_string());
         app.handle_event(AppEvent::Select);
         assert_eq!(app.screen, Screen::Detail(0));
         app.handle_event(AppEvent::NavigateUp);
@@ -236,36 +236,36 @@ mod tests {
 
     #[test]
     fn select_on_empty_list_stays_on_list_screen() {
-        let mut app = App::new(vec![]);
+        let mut app = App::new(vec![], "test_user".to_string());
         app.handle_event(AppEvent::Select);
         assert_eq!(app.screen, Screen::List);
     }
 
     // ------------------------------------------------------------------
-    // selected_pr
+    // selected_issue
     // ------------------------------------------------------------------
 
     #[test]
-    fn selected_pr_returns_correct_item() {
-        let mut app = App::new(sample_prs(5));
+    fn selected_issue_returns_correct_item() {
+        let mut app = App::new(sample_issues(5), "test_user".to_string());
         app.handle_event(AppEvent::NavigateDown);
         app.handle_event(AppEvent::NavigateDown);
-        let pr = app.selected_pr().unwrap();
-        assert_eq!(pr.number, 2);
+        let issue = app.selected_issue().unwrap();
+        assert_eq!(issue.title, "Update dep 2");
     }
 
     // ------------------------------------------------------------------
-    // update_prs
+    // update_issues
     // ------------------------------------------------------------------
 
     #[test]
-    fn update_prs_resets_selection_and_screen() {
-        let mut app = App::new(sample_prs(5));
+    fn update_issues_resets_selection_and_screen() {
+        let mut app = App::new(sample_issues(5), "test_user".to_string());
         app.handle_event(AppEvent::NavigateDown);
         app.handle_event(AppEvent::Select);
-        app.update_prs(sample_prs(3));
+        app.update_issues(sample_issues(3));
         assert_eq!(app.selected, 0);
         assert_eq!(app.screen, Screen::List);
-        assert_eq!(app.prs.len(), 3);
+        assert_eq!(app.issues.len(), 3);
     }
 }

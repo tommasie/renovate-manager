@@ -77,6 +77,28 @@ impl RenovatePr {
     }
 }
 
+/// An IssueItem represents a GitHub Issue (or PR) returned by the search API, with only the fields we care about for display.
+/// TODO find a way to include the PR checks status 
+pub struct IssueItem {
+    pub repo: String,
+    pub title: String,
+    pub pull_request_url: String,
+}
+
+impl IssueItem {
+    pub fn new(
+        repo: impl Into<String>,
+        title: impl Into<String>,
+        pull_request_url: impl Into<String>,
+    ) -> Self {
+        Self {
+            repo: repo.into(),
+            title: title.into(),
+            pull_request_url: pull_request_url.into(),
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------

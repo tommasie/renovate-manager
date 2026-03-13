@@ -10,6 +10,8 @@ mod auth;
 mod github;
 mod models;
 mod ui;
+mod octocrab_ext;
+mod utils;
 
 use std::io;
 use std::time::Duration;
@@ -51,6 +53,8 @@ async fn main() -> Result<()> {
 
     // Collect repos from all orgs/teams the token has access to.
     let prs = fetch_all_renovate_prs(&client).await?;
+    // Collect list of issues assigned to the authenticated user.
+    let issues = fetch_all_issues(&client).await?;
 
     // ------------------------------------------------------------------
     // 4. Set up the terminal
@@ -66,7 +70,7 @@ async fn main() -> Result<()> {
     // ------------------------------------------------------------------
     // 5. Run the TUI
     // ------------------------------------------------------------------
-    let result = run_app(&mut terminal, prs).await;
+    let result = run_app(&mut terminal, issues, login).await;
 
     // Restore terminal on any exit path
     disable_raw_mode().ok();
@@ -87,9 +91,10 @@ async fn main() -> Result<()> {
 
 async fn run_app<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
-    prs: Vec<models::RenovatePr>,
+    issues: Vec<models::IssueItem>,
+    gh_username: String,
 ) -> Result<()> {
-    let mut app = App::new(prs);
+    let mut app = App::new(issues, gh_username);
 
     loop {
         terminal.draw(|frame| widgets::render(frame, &app))?;
@@ -142,41 +147,52 @@ fn map_key_event(code: KeyCode) -> Option<AppEvent> {
 async fn fetch_all_renovate_prs(
     client: &GithubClient,
 ) -> Result<Vec<models::RenovatePr>> {
-    // Fetch only the teams the authenticated user belongs to in a single
-    // API call, replacing the previous two-step approach of listing all
-    // organisations then all org teams.
-    let teams = match client.teams_for_authenticated_user().await {
-        Ok(t) => t,
-        Err(e) => {
-            eprintln!("[WARN] Could not list user teams: {e}");
-            vec![]
-        }
-    };
+    Ok(Vec::new())
+    // // Fetch only the teams the authenticated user belongs to in a single
+    // // API call, replacing the previous two-step approach of listing all
+    // // organisations then all org teams.
+    // let teams = match client.teams_for_authenticated_user().await {
+    //     Ok(t) => t,
+    //     Err(e) => {
+    //         eprintln!("[WARN] Could not list user teams: {e}");
+    //         vec![]
+    //     }
+    // };
 
-    let mut all_repos: Vec<String> = Vec::new();
+    // let mut all_repos: Vec<String> = Vec::new();
 
-    for (org, team_slug) in &teams {
-        match client.repos_for_team(org, team_slug).await {
-            Ok(repos) => all_repos.extend(repos),
-            Err(e) => eprintln!("[WARN] Could not list repos for {org}/{team_slug}: {e}"),
-        }
-    }
+    // for (org, team_slug) in &teams {
+    //     match client.repos_for_team(org, team_slug).await {
+    //         Ok(repos) => all_repos.extend(repos),
+    //         Err(e) => eprintln!("[WARN] Could not list repos for {org}/{team_slug}: {e}"),
+    //     }
+    // }
 
-    // Deduplicate repos.
-    all_repos.sort();
-    all_repos.dedup();
+    // // Deduplicate repos.
+    // all_repos.sort();
+    // all_repos.dedup();
 
-    if all_repos.is_empty() {
-        eprintln!("[INFO] No team repositories found; showing empty list.");
-        return Ok(vec![]);
-    }
+    // if all_repos.is_empty() {
+    //     eprintln!("[INFO] No team repositories found; showing empty list.");
+    //     return Ok(vec![]);
+    // }
 
-    eprintln!(
-        "[INFO] Fetching Renovate PRs from {} repositories…",
-        all_repos.len()
-    );
+    // eprintln!(
+    //     "[INFO] Fetching Renovate PRs from {} repositories…",
+    //     all_repos.len()
+    // );
+    // client
+    //     .all_renovate_prs(&all_repos)
+    //     .await
+    //     .context("Failed to fetch Renovate pull requests")
+}
+
+/// Fetches all GitHub Issues assigned to the authenticated user which are renovate PRs
+async fn fetch_all_issues(
+    client: &GithubClient,
+) -> Result<Vec<models::IssueItem>> {
     client
-        .all_renovate_prs(&all_repos)
+        .renovate_prs_for_user()
         .await
         .context("Failed to fetch Renovate pull requests")
 }

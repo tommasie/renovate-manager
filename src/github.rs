@@ -14,25 +14,8 @@ use octocrab::{
 };
 use serde::Deserialize;
 
-use crate::models::{ChecksStatus, RenovatePr};
-
-// ---------------------------------------------------------------------------
-// Private deserialization types for the GET /user/teams endpoint
-// ---------------------------------------------------------------------------
-
-/// Minimal organisation data embedded in each team returned by
-/// `GET /user/teams`.
-#[derive(Deserialize)]
-struct ApiTeamOrg {
-    login: String,
-}
-
-/// A single team entry from `GET /user/teams`.
-#[derive(Deserialize)]
-struct ApiUserTeam {
-    slug: String,
-    organization: ApiTeamOrg,
-}
+use crate::{models::{ChecksStatus, IssueItem, RenovatePr}, utils::extract_repo_name_from_url};
+use crate::octocrab_ext::RenovatePrFetcher;
 
 /// Label that all Renovate-created pull requests carry.
 const RENOVATE_LABEL: &str = "renovate";
@@ -72,51 +55,33 @@ impl GithubClient {
         Ok(user.login)
     }
 
-    /// Returns all `(org_login, team_slug)` pairs for teams the authenticated
-    /// user is a member of, using `GET /user/teams`.
-    ///
-    /// Fetches up to 100 teams per page. For users who are members of more than
-    /// 100 teams the remaining pages are not currently retrieved – this mirrors
-    /// the single-page behaviour used elsewhere in the client.
-    ///
-    /// Note: Octocrab 0.43 does not expose this endpoint through its typed API,
-    /// so the call is made via the low-level generic `GET` helper.
-    pub async fn teams_for_authenticated_user(&self) -> Result<Vec<(String, String)>> {
-        let teams: Vec<ApiUserTeam> = self
-            .octocrab
-            .get("/user/teams?per_page=100", None::<&()>)
-            .await
-            .context("Failed to list teams for authenticated user")?;
-
-        Ok(teams
-            .into_iter()
-            .map(|t| (t.organization.login, t.slug))
-            .collect())
+    pub async fn renovate_prs_for_user(&self)-> Result<Vec<IssueItem>> {
+        let gh_user = self.current_user_login().await?;
+        let pulls = self.octocrab.list_renovate_prs_for_user(gh_user).await?;
+        let renovate_prs: Vec<IssueItem> = pulls.items.into_iter()
+            .map(|issue: octocrab::models::issues::Issue| {
+                    IssueItem::new(
+                        extract_repo_name_from_url(issue.repository_url.as_str()).unwrap_or_default(),
+                        issue.title,
+                        issue.url.to_string(),
+                    )
+                })
+            .collect();
+        Ok(renovate_prs)
     }
 
-    /// Returns full repository names (`"owner/repo"`) for all repositories
-    /// accessible to `team_slug` within `org`.
-    pub async fn repos_for_team(
-        &self,
-        org: &str,
-        team_slug: &str,
-    ) -> Result<Vec<String>> {
-        // octocrab's TeamRepoHandler does not expose a list() builder in 0.43,
-        // so we call the endpoint directly via the generic GET helper.
-        let url = format!("/orgs/{org}/teams/{team_slug}/repos");
-        let repos: Vec<octocrab::models::Repository> = self
+    pub async fn get_pr_from_issue(&self, issue: &IssueItem) -> Result<PullRequest> {
+        let (owner, repo) = split_repo(&issue.repo)?;
+        let pr_number = issue.pull_request_url.rsplit('/').next()
+            .and_then(|n| n.parse::<u64>().ok())
+            .context("Failed to extract PR number from issue URL")?;
+        let pr = self
             .octocrab
-            .get(&url, None::<&()>)
+            .pulls(&owner, &repo)
+            .get(pr_number)
             .await
-            .with_context(|| {
-                format!("Failed to list repos for team '{org}/{team_slug}'")
-            })?;
-
-        let names = repos
-            .into_iter()
-            .map(|r| r.full_name.unwrap_or_else(|| r.name))
-            .collect();
-        Ok(names)
+            .with_context(|| format!("Failed to fetch pull request for issue '{}'", issue.title))?;
+        Ok(pr)
     }
 
     /// Fetches all open Renovate pull requests for a single repository.
@@ -337,70 +302,4 @@ mod tests {
         assert_eq!(checks_status_from_state(None), ChecksStatus::Unknown);
     }
 
-    // ------------------------------------------------------------------
-    // ApiUserTeam – deserialization and mapping (GET /user/teams)
-    // ------------------------------------------------------------------
-
-    #[test]
-    fn api_user_team_deserializes_from_json() {
-        let json = r#"{
-            "id": 1,
-            "slug": "justice-league",
-            "name": "Justice League",
-            "organization": { "login": "dc-comics", "id": 42 }
-        }"#;
-        let team: ApiUserTeam = serde_json::from_str(json).unwrap();
-        assert_eq!(team.slug, "justice-league");
-        assert_eq!(team.organization.login, "dc-comics");
-    }
-
-    #[test]
-    fn api_user_teams_list_deserializes_from_json() {
-        let json = r#"[
-            {"id": 1, "slug": "team-a", "name": "Team A", "organization": {"login": "org-1", "id": 1}},
-            {"id": 2, "slug": "team-b", "name": "Team B", "organization": {"login": "org-2", "id": 2}}
-        ]"#;
-        let teams: Vec<ApiUserTeam> = serde_json::from_str(json).unwrap();
-        assert_eq!(teams.len(), 2);
-        assert_eq!(teams[0].organization.login, "org-1");
-        assert_eq!(teams[0].slug, "team-a");
-        assert_eq!(teams[1].organization.login, "org-2");
-        assert_eq!(teams[1].slug, "team-b");
-    }
-
-    #[test]
-    fn api_user_teams_map_to_org_slug_pairs() {
-        let teams = vec![
-            ApiUserTeam {
-                slug: "team-a".to_owned(),
-                organization: ApiTeamOrg { login: "org-1".to_owned() },
-            },
-            ApiUserTeam {
-                slug: "team-b".to_owned(),
-                organization: ApiTeamOrg { login: "org-2".to_owned() },
-            },
-        ];
-        let pairs: Vec<(String, String)> = teams
-            .into_iter()
-            .map(|t| (t.organization.login, t.slug))
-            .collect();
-        assert_eq!(pairs[0], ("org-1".to_owned(), "team-a".to_owned()));
-        assert_eq!(pairs[1], ("org-2".to_owned(), "team-b".to_owned()));
-    }
-
-    #[test]
-    fn api_user_teams_deduplicates_correctly() {
-        // Verifies that the org+slug pairs produced by the mapping feed
-        // correctly into a sort+dedup pipeline (mirrors fetch_all_renovate_prs).
-        let mut pairs: Vec<(String, String)> = vec![
-            ("org-b".to_owned(), "team-z".to_owned()),
-            ("org-a".to_owned(), "team-y".to_owned()),
-            ("org-a".to_owned(), "team-y".to_owned()), // duplicate
-        ];
-        pairs.sort();
-        pairs.dedup();
-        assert_eq!(pairs.len(), 2);
-        assert_eq!(pairs[0], ("org-a".to_owned(), "team-y".to_owned()));
-        assert_eq!(pairs[1], ("org-b".to_owned(), "team-z".to_owned()));
-    }
 }

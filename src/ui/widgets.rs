@@ -7,7 +7,7 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
 };
 
-use crate::models::{ChecksStatus, RenovatePr};
+use crate::models::{ChecksStatus, IssueItem, RenovatePr};
 use crate::ui::app::{App, Screen};
 
 // ---------------------------------------------------------------------------
@@ -39,14 +39,14 @@ pub fn render(frame: &mut Frame, app: &App) {
         ])
         .split(area);
 
-    render_header(frame, chunks[0]);
+    render_header(frame, chunks[0], app.gh_username.clone());
 
     match &app.screen {
         Screen::List => render_pr_list(frame, chunks[1], app),
         Screen::Detail(idx) => {
-            if let Some(pr) = app.prs.get(*idx) {
-                render_pr_detail(frame, chunks[1], pr);
-            }
+            // if let Some(pr) = app.prs.get(*idx) {
+            //     render_pr_detail(frame, chunks[1], pr);
+            // }
         }
     }
 
@@ -57,8 +57,8 @@ pub fn render(frame: &mut Frame, app: &App) {
 // Header
 // ---------------------------------------------------------------------------
 
-fn render_header(frame: &mut Frame, area: Rect) {
-    let title = Paragraph::new(" 🔧  Renovate Manager")
+fn render_header(frame: &mut Frame, area: Rect, user: String) {
+    let title = Paragraph::new(format!(" 🔧  Renovate Manager - Logged in as: {}", user))
         .style(Style::default().fg(COLOR_HEADER).add_modifier(Modifier::BOLD))
         .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(COLOR_BORDER)));
     frame.render_widget(title, area);
@@ -69,7 +69,7 @@ fn render_header(frame: &mut Frame, area: Rect) {
 // ---------------------------------------------------------------------------
 
 fn render_pr_list(frame: &mut Frame, area: Rect, app: &App) {
-    if app.prs.is_empty() {
+    if app.issues.is_empty() {
         let empty = Paragraph::new("  No open Renovate pull requests found.")
             .style(Style::default().fg(Color::Gray))
             .block(
@@ -101,10 +101,10 @@ fn render_pr_list(frame: &mut Frame, area: Rect, app: &App) {
     ]);
 
     let rows: Vec<Row> = app
-        .prs
+        .issues
         .iter()
         .enumerate()
-        .map(|(i, pr)| {
+        .map(|(i, issue)| {
             let style = if i == app.selected {
                 Style::default()
                     .bg(COLOR_SELECTED_BG)
@@ -113,11 +113,11 @@ fn render_pr_list(frame: &mut Frame, area: Rect, app: &App) {
                 Style::default()
             };
 
-            let checks_cell = checks_cell(pr);
+            let checks_cell = checks_cell_issue(issue);
 
             Row::new(vec![
-                Cell::from(pr.repo.clone()),
-                Cell::from(pr.title.clone()),
+                Cell::from(shortened_repo_name(&issue.repo)),
+                Cell::from(issue.title.clone()),
                 checks_cell,
             ])
             .style(style)
@@ -136,7 +136,7 @@ fn render_pr_list(frame: &mut Frame, area: Rect, app: &App) {
             Block::default()
                 .title(format!(
                     " Renovate PRs ({}) ",
-                    app.prs.len()
+                    app.issues.len()
                 ))
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(COLOR_BORDER)),
@@ -151,6 +151,11 @@ fn render_pr_list(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_stateful_widget(table, area, &mut state);
 }
 
+fn shortened_repo_name(repo_name: &str) -> String {
+    // Extract the last part of the repo name for brevity, e.g. "owner/repo" -> "repo"
+    repo_name.split('/').last().unwrap_or(repo_name).to_string()
+}
+
 fn checks_cell(pr: &RenovatePr) -> Cell<'static> {
     let (label, color) = match pr.checks_status {
         ChecksStatus::Success => (format!("{} success", ChecksStatus::Success.symbol()), COLOR_SUCCESS),
@@ -160,12 +165,15 @@ fn checks_cell(pr: &RenovatePr) -> Cell<'static> {
     };
     Cell::from(label).style(Style::default().fg(color))
 }
+fn checks_cell_issue(_issue: &IssueItem) -> Cell<'static> {
+    Cell::from(format!("{} unknown", ChecksStatus::Unknown.symbol())).style(Style::default().fg(COLOR_UNKNOWN))
+}
 
 // ---------------------------------------------------------------------------
 // PR detail
 // ---------------------------------------------------------------------------
 
-fn render_pr_detail(frame: &mut Frame, area: Rect, pr: &RenovatePr) {
+fn render_pr_detail(frame: &mut Frame, area: Rect, pr: &RenovatePr, issue: &IssueItem) {
     let (checks_label, checks_color) = match &pr.checks_status {
         ChecksStatus::Success => ("✓ success", COLOR_SUCCESS),
         ChecksStatus::Pending => ("⏳ pending", COLOR_PENDING),
