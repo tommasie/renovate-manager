@@ -2,9 +2,10 @@
   description = "A Nix-flake-based Rust development environment";
 
   inputs = {
-    nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1"; # unstable Nixpkgs
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable"; # unstable Nixpkgs
     fenix = {
-      url = "https://flakehub.com/f/nix-community/fenix/0.1";
+      url = "github:nix-community/fenix";
+      # Follow the nixpkgs input to ensure compatibility
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -67,6 +68,25 @@
               # Required by rust-analyzer
               RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
             };
+          };
+        }
+      );
+
+      packages = forEachSupportedSystem (
+        { pkgs }:
+        {
+          default = pkgs.rustPlatform.buildRustPackage {
+            pname = "renovate-manager";
+            version = "0.0.1";
+            src = ./.;
+            # cargoBuildFlags = "-p app";
+
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+            };
+
+            nativeBuildInputs = [ pkgs.pkg-config ];
+            PKG_CONFIG_PATH = "${pkgs.openssl.dev}/lib/pkgconfig";
           };
         }
       );
