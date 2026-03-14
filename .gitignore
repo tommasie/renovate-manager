@@ -1,3 +1,5 @@
 .github/instructions
 .github/prompts
-/target
+.direnv/
+target/
+result
