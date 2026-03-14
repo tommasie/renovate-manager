@@ -61,7 +61,11 @@ mod tests {
     fn smoke_returns_non_empty_token() {
         let token = get_gh_token().expect("should retrieve a token");
         assert!(!token.is_empty(), "token must not be empty");
-        assert_eq!(token, token.trim(), "token must have no leading/trailing whitespace");
+        assert_eq!(
+            token,
+            token.trim(),
+            "token must have no leading/trailing whitespace"
+        );
     }
 
     /// When the gh binary does not exist the function should return an error

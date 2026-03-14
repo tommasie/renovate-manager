@@ -59,8 +59,16 @@ pub fn render(frame: &mut Frame, app: &App) {
 
 fn render_header(frame: &mut Frame, area: Rect, user: String) {
     let title = Paragraph::new(format!(" 🔧  Renovate Manager - Logged in as: {}", user))
-        .style(Style::default().fg(COLOR_HEADER).add_modifier(Modifier::BOLD))
-        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(COLOR_BORDER)));
+        .style(
+            Style::default()
+                .fg(COLOR_HEADER)
+                .add_modifier(Modifier::BOLD),
+        )
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(COLOR_BORDER)),
+        );
     frame.render_widget(title, area);
 }
 
@@ -134,10 +142,7 @@ fn render_pr_list(frame: &mut Frame, area: Rect, app: &App) {
         .header(header.style(Style::default()))
         .block(
             Block::default()
-                .title(format!(
-                    " Renovate PRs ({}) ",
-                    app.issues.len()
-                ))
+                .title(format!(" Renovate PRs ({}) ", app.issues.len()))
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(COLOR_BORDER)),
         )
@@ -158,15 +163,28 @@ fn shortened_repo_name(repo_name: &str) -> String {
 
 fn checks_cell(pr: &RenovatePr) -> Cell<'static> {
     let (label, color) = match pr.checks_status {
-        ChecksStatus::Success => (format!("{} success", ChecksStatus::Success.symbol()), COLOR_SUCCESS),
-        ChecksStatus::Pending => (format!("{} pending", ChecksStatus::Pending.symbol()), COLOR_PENDING),
-        ChecksStatus::Failure => (format!("{} failure", ChecksStatus::Failure.symbol()), COLOR_FAILURE),
-        ChecksStatus::Unknown => (format!("{} unknown", ChecksStatus::Unknown.symbol()), COLOR_UNKNOWN),
+        ChecksStatus::Success => (
+            format!("{} success", ChecksStatus::Success.symbol()),
+            COLOR_SUCCESS,
+        ),
+        ChecksStatus::Pending => (
+            format!("{} pending", ChecksStatus::Pending.symbol()),
+            COLOR_PENDING,
+        ),
+        ChecksStatus::Failure => (
+            format!("{} failure", ChecksStatus::Failure.symbol()),
+            COLOR_FAILURE,
+        ),
+        ChecksStatus::Unknown => (
+            format!("{} unknown", ChecksStatus::Unknown.symbol()),
+            COLOR_UNKNOWN,
+        ),
     };
     Cell::from(label).style(Style::default().fg(color))
 }
 fn checks_cell_issue(_issue: &IssueItem) -> Cell<'static> {
-    Cell::from(format!("{} unknown", ChecksStatus::Unknown.symbol())).style(Style::default().fg(COLOR_UNKNOWN))
+    Cell::from(format!("{} unknown", ChecksStatus::Unknown.symbol()))
+        .style(Style::default().fg(COLOR_UNKNOWN))
 }
 
 // ---------------------------------------------------------------------------
@@ -183,27 +201,52 @@ fn render_pr_detail(frame: &mut Frame, area: Rect, pr: &RenovatePr, issue: &Issu
 
     let lines = vec![
         Line::from(vec![
-            Span::styled("  Repository:  ", Style::default().fg(COLOR_HEADER).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  Repository:  ",
+                Style::default()
+                    .fg(COLOR_HEADER)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(pr.repo.clone()),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  PR #:        ", Style::default().fg(COLOR_HEADER).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  PR #:        ",
+                Style::default()
+                    .fg(COLOR_HEADER)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(pr.number.to_string()),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  Title:       ", Style::default().fg(COLOR_HEADER).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  Title:       ",
+                Style::default()
+                    .fg(COLOR_HEADER)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(pr.title.clone()),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  Checks:      ", Style::default().fg(COLOR_HEADER).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  Checks:      ",
+                Style::default()
+                    .fg(COLOR_HEADER)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(checks_label, Style::default().fg(checks_color)),
         ]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  URL:         ", Style::default().fg(COLOR_HEADER).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  URL:         ",
+                Style::default()
+                    .fg(COLOR_HEADER)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(pr.url.clone()),
         ]),
     ];
@@ -235,7 +278,11 @@ fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
 
     let footer = Paragraph::new(content)
         .style(Style::default().fg(COLOR_FOOTER))
-        .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(COLOR_BORDER)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(COLOR_BORDER)),
+        );
 
     frame.render_widget(footer, area);
 }

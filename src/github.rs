@@ -14,8 +14,11 @@ use octocrab::{
 };
 use serde::Deserialize;
 
-use crate::{models::{ChecksStatus, IssueItem, RenovatePr}, utils::extract_repo_name_from_url};
 use crate::octocrab_ext::RenovatePrFetcher;
+use crate::{
+    models::{ChecksStatus, IssueItem, RenovatePr},
+    utils::extract_repo_name_from_url,
+};
 
 /// Label that all Renovate-created pull requests carry.
 const RENOVATE_LABEL: &str = "renovate";
@@ -55,24 +58,29 @@ impl GithubClient {
         Ok(user.login)
     }
 
-    pub async fn renovate_prs_for_user(&self)-> Result<Vec<IssueItem>> {
+    pub async fn renovate_prs_for_user(&self) -> Result<Vec<IssueItem>> {
         let gh_user = self.current_user_login().await?;
         let pulls = self.octocrab.list_renovate_prs_for_user(gh_user).await?;
-        let renovate_prs: Vec<IssueItem> = pulls.items.into_iter()
+        let renovate_prs: Vec<IssueItem> = pulls
+            .items
+            .into_iter()
             .map(|issue: octocrab::models::issues::Issue| {
-                    IssueItem::new(
-                        extract_repo_name_from_url(issue.repository_url.as_str()).unwrap_or_default(),
-                        issue.title,
-                        issue.url.to_string(),
-                    )
-                })
+                IssueItem::new(
+                    extract_repo_name_from_url(issue.repository_url.as_str()).unwrap_or_default(),
+                    issue.title,
+                    issue.url.to_string(),
+                )
+            })
             .collect();
         Ok(renovate_prs)
     }
 
     pub async fn get_pr_from_issue(&self, issue: &IssueItem) -> Result<PullRequest> {
         let (owner, repo) = split_repo(&issue.repo)?;
-        let pr_number = issue.pull_request_url.rsplit('/').next()
+        let pr_number = issue
+            .pull_request_url
+            .rsplit('/')
+            .next()
             .and_then(|n| n.parse::<u64>().ok())
             .context("Failed to extract PR number from issue URL")?;
         let pr = self
@@ -100,9 +108,7 @@ impl GithubClient {
             .per_page(100)
             .send()
             .await
-            .with_context(|| {
-                format!("Failed to list pull requests for '{full_repo}'")
-            })?;
+            .with_context(|| format!("Failed to list pull requests for '{full_repo}'"))?;
 
         let renovate_prs: Vec<RenovatePr> = prs
             .items
@@ -114,9 +120,7 @@ impl GithubClient {
                     full_repo,
                     pr.number,
                     pr.title.unwrap_or_default(),
-                    pr.html_url
-                        .map(|u| u.to_string())
-                        .unwrap_or_default(),
+                    pr.html_url.map(|u| u.to_string()).unwrap_or_default(),
                     checks_status,
                 )
             })
@@ -126,10 +130,7 @@ impl GithubClient {
     }
 
     /// Aggregates Renovate PRs across all provided repository names.
-    pub async fn all_renovate_prs(
-        &self,
-        repos: &[String],
-    ) -> Result<Vec<RenovatePr>> {
+    pub async fn all_renovate_prs(&self, repos: &[String]) -> Result<Vec<RenovatePr>> {
         let mut all = Vec::new();
         for repo in repos {
             let prs = self.renovate_prs(repo).await.unwrap_or_else(|err| {
@@ -254,7 +255,9 @@ mod tests {
 
     #[test]
     fn has_renovate_label_with_renovate() {
-        assert!(has_renovate_label(["renovate", "dependencies"].iter().copied()));
+        assert!(has_renovate_label(
+            ["renovate", "dependencies"].iter().copied()
+        ));
     }
 
     #[test]
@@ -279,27 +282,38 @@ mod tests {
 
     #[test]
     fn checks_status_clean_is_success() {
-        assert_eq!(checks_status_from_state(Some(&MergeableState::Clean)), ChecksStatus::Success);
+        assert_eq!(
+            checks_status_from_state(Some(&MergeableState::Clean)),
+            ChecksStatus::Success
+        );
     }
 
     #[test]
     fn checks_status_blocked_is_failure() {
-        assert_eq!(checks_status_from_state(Some(&MergeableState::Blocked)), ChecksStatus::Failure);
+        assert_eq!(
+            checks_status_from_state(Some(&MergeableState::Blocked)),
+            ChecksStatus::Failure
+        );
     }
 
     #[test]
     fn checks_status_unstable_is_failure() {
-        assert_eq!(checks_status_from_state(Some(&MergeableState::Unstable)), ChecksStatus::Failure);
+        assert_eq!(
+            checks_status_from_state(Some(&MergeableState::Unstable)),
+            ChecksStatus::Failure
+        );
     }
 
     #[test]
     fn checks_status_behind_is_pending() {
-        assert_eq!(checks_status_from_state(Some(&MergeableState::Behind)), ChecksStatus::Pending);
+        assert_eq!(
+            checks_status_from_state(Some(&MergeableState::Behind)),
+            ChecksStatus::Pending
+        );
     }
 
     #[test]
     fn checks_status_none_is_unknown() {
         assert_eq!(checks_status_from_state(None), ChecksStatus::Unknown);
     }
-
 }
