@@ -1,5 +1,5 @@
 /// Application state and event loop for the TUI.
-use crate::models::{RenovatePr, IssueItem};
+use crate::models::{IssueItem, RenovatePr};
 
 // ---------------------------------------------------------------------------
 // Input events
@@ -126,11 +126,13 @@ mod tests {
 
     fn sample_issues(n: usize) -> Vec<IssueItem> {
         (0..n)
-            .map(|i| IssueItem::new(
-                format!("owner/repo-{i}"),
-                format!("Update dep {i}"),
-                format!("https://github.com/owner/repo-{i}/pull/{i}")
-            ))
+            .map(|i| {
+                IssueItem::new(
+                    format!("owner/repo-{i}"),
+                    format!("Update dep {i}"),
+                    format!("https://github.com/owner/repo-{i}/pull/{i}"),
+                )
+            })
             .collect()
     }
 
@@ -197,7 +199,7 @@ mod tests {
 
     #[test]
     fn navigate_up_decrements_selection() {
-        let mut app = App::new( sample_issues(5), "test_user".to_string());
+        let mut app = App::new(sample_issues(5), "test_user".to_string());
         app.handle_event(AppEvent::NavigateDown);
         app.handle_event(AppEvent::NavigateDown);
         app.handle_event(AppEvent::NavigateUp);

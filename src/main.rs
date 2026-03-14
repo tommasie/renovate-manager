@@ -9,8 +9,8 @@
 mod auth;
 mod github;
 mod models;
-mod ui;
 mod octocrab_ext;
+mod ui;
 mod utils;
 
 use std::io;
@@ -38,8 +38,7 @@ async fn main() -> Result<()> {
     // ------------------------------------------------------------------
     // 2. GitHub client
     // ------------------------------------------------------------------
-    let client = GithubClient::new(&token)
-        .context("Could not create GitHub client")?;
+    let client = GithubClient::new(&token).context("Could not create GitHub client")?;
 
     // ------------------------------------------------------------------
     // 3. Discover the authenticated user and their team repos
@@ -144,9 +143,7 @@ fn map_key_event(code: KeyCode) -> Option<AppEvent> {
 ///
 /// Uses `GET /user/teams` to fetch only the teams the authenticated user is
 /// actually a member of, rather than iterating every org and every team.
-async fn fetch_all_renovate_prs(
-    client: &GithubClient,
-) -> Result<Vec<models::RenovatePr>> {
+async fn fetch_all_renovate_prs(client: &GithubClient) -> Result<Vec<models::RenovatePr>> {
     Ok(Vec::new())
     // // Fetch only the teams the authenticated user belongs to in a single
     // // API call, replacing the previous two-step approach of listing all
@@ -188,9 +185,7 @@ async fn fetch_all_renovate_prs(
 }
 
 /// Fetches all GitHub Issues assigned to the authenticated user which are renovate PRs
-async fn fetch_all_issues(
-    client: &GithubClient,
-) -> Result<Vec<models::IssueItem>> {
+async fn fetch_all_issues(client: &GithubClient) -> Result<Vec<models::IssueItem>> {
     client
         .renovate_prs_for_user()
         .await
